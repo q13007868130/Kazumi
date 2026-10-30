@@ -1,0 +1,66 @@
+name: Kazumi NX - StreamFinEX Native P0
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - port/switch-streamfinex-mvp
+    paths:
+      - switch-streamfin/**
+      - .github/workflows/kazumi-switch-streamfinex.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test Kazumi NX integration scripts
+        run: python3 -m unittest discover -s switch-streamfin/tests -v
+
+      - name: Fetch pinned StreamFinEX (including submodules)
+        run: |
+          git clone --recursive https://github.com/Kirbosh/StreamFinEX.git upstream-streamfin
+          git -C upstream-streamfin checkout --detach 4ea3cecb3afd91b3b7feff7595b4b74a6e883b4a
+          git -C upstream-streamfin submodule update --init --recursive
+          test "$(git -C upstream-streamfin rev-parse HEAD)" = 4ea3cecb3afd91b3b7feff7595b4b74a6e883b4a
+
+      - name: Generate separate Kazumi NX icon
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install Pillow==11.3.0
+          .venv/bin/python switch-streamfin/tools/make_icon.py --output upstream-streamfin/resources/icon/kazuminx.jpg
+
+      - name: Apply the Kazumi NX source overlay
+        run: python3 switch-streamfin/tools/prepare.py --upstream upstream-streamfin
+
+      - name: Build using StreamFinEX devkitPro setup
+        run: |
+          docker run --rm -e CI=true -v "$PWD/upstream-streamfin:/work" -w /work devkitpro/devkita64:20260219 bash -ec '
+            BASE_URL=https://github.com/dragonflylee/switchfin/releases/download/switch-portlibs
+            for pkg in mbedtls-3.6.5-1 libssh2-1.11.1-1 dav1d-1.5.3-1 curl-8.16.0-2 ffmpeg-7.1.5-5 libmpv-0.36.0-5; do
+              dkp-pacman --noconfirm -U "$BASE_URL/switch-$pkg-any.pkg.tar.zst"
+            done
+            git config --system --add safe.directory /work
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DPLATFORM_SWITCH=ON -DBUILTIN_NSP=OFF
+            cmake --build build --target KazumiNX.nro -j 3
+          '
+
+      - name: Stage NRO and test data
+        run: |
+          test -s upstream-streamfin/build/KazumiNX.nro
+          mkdir -p dist/KazumiNX
+          cp upstream-streamfin/build/KazumiNX.nro dist/KazumiNX/KazumiNX.nro
+          cp switch-streamfin/streams.txt dist/KazumiNX/streams.txt
+          cp switch-streamfin/README.md dist/README.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KazumiNX-StreamFinEX-P0
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error
