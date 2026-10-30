@@ -37,7 +37,7 @@ class OverlayTest(unittest.TestCase):
             self.assertIn("KazumiNX::openSources()", (base/"app/src/activity/stremio_home.cpp").read_text())
             self.assertNotIn("brls::sync([]() { promptForAddon", (base/"app/src/activity/stremio_home.cpp").read_text())
             self.assertIn("kazuminx.log", (base/"app/src/main.cpp").read_text())
-            self.assertIn("#define GA(a, ...) ((void)0)", (base/"app/include/api/analytics.hpp").read_text())
+            self.assertIn("#define GA(a, ...) ((void)0);", (base/"app/include/api/analytics.hpp").read_text())
             self.assertTrue((base/"app/src/kazumi_nx/sources.cpp").is_file())
             with self.assertRaises(RuntimeError):
                 module.apply(base, root/"overlay")

@@ -74,7 +74,7 @@ def apply(base, overlay):
     a = analytics.read_text(encoding="utf-8")
     a = once(a,
         '#define GA(a, ...) analytics::Analytics::instance().report(a, ##__VA_ARGS__);',
-        '#define GA(a, ...) ((void)0)', "disable analytics")
+        '#define GA(a, ...) ((void)0);', "disable analytics")
 
     # Write validated files only after all anchors have been checked.
     cmake.write_text(c, encoding="utf-8")
