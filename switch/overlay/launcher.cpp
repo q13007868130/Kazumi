@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <cstdio>
+#include <sys/stat.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,6 +19,7 @@
 
 #include "view/video_view.hpp"
 #include "view/mpv_core.hpp"
+#include "utils/config_helper.hpp"
 
 namespace KazumiNX {
 namespace {
@@ -34,7 +37,7 @@ std::string trim(std::string value) {
 }
 
 bool isAllowedUrl(const std::string& url) {
-    return url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0;
+    return url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0 || url.rfind("sdmc:/", 0) == 0;
 }
 
 std::vector<StreamEntry> readStreams() {
@@ -58,34 +61,69 @@ std::vector<StreamEntry> readStreams() {
             "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"});
         streams.push_back({"HLS test stream",
             "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"});
+        streams.push_back({"Local SD test.mp4", "sdmc:/switch/KazumiNX/test.mp4"});
     }
     return streams;
 }
 
 void openStream(const StreamEntry& stream) {
-    // Keep the player view from wiliwili: includes controller focus, OSD and MPV rendering.
+    MPVCore::HARDWARE_DEC = false; // Ryujinx diagnostic: bypass NVDEC.
+    MPVCore::AUTO_PLAY = true;
+    // Same full-window geometry as wiliwili's built-in fullscreen path.
+    auto* container = new brls::Box();
+    const float width = brls::Application::contentWidth;
+    const float height = brls::Application::contentHeight;
+    container->setDimensions(width, height);
     auto* video = new VideoView();
-    auto* frame = new brls::AppletFrame(video);
-    frame->setTitle("Kazumi NX | " + stream.name);
-    brls::Application::pushActivity(
-        new brls::Activity(frame), brls::TransitionAnimation::NONE);
+    video->setDimensions(width, height);
+    video->setWidthPercentage(100);
+    video->setHeightPercentage(100);
+    video->setId("video");
+    video->setTitle("Kazumi NX | " + stream.name);
+    video->setOnlineCount("");
+    video->hideDanmakuButton();
+    video->hideDLNAButton();
+    video->hideVideoQualityButton();
+    video->hideVideoSpeedButton();
+    video->hideSkipOpeningCreditsSetting();
+    video->hideHistorySetting();
+    video->hideVideoRelatedSetting();
+    container->addView(video);
+    auto* activity = new brls::Activity(container);
+    brls::Application::pushActivity(activity, brls::TransitionAnimation::NONE);
+    video->registerCommonActions(activity);
+    brls::Logger::info("[KazumiNX] Opening {}: {}", stream.name, stream.url);
     video->setUrl(stream.url);
+}
+
+void startDiagnosticLog() {
+    const auto path = ProgramConfig::instance().getConfigDir();
+    mkdir("/config", 0777);
+    mkdir(path.c_str(), 0777);
+    if (FILE* fp = std::fopen((path + "/kazuminx.log").c_str(), "w")) {
+        brls::Logger::setLogLevel(brls::LogLevel::LOG_DEBUG);
+        brls::Logger::setLogOutput(fp);
+        brls::Logger::info("[KazumiNX] P0.2 software decode / fullscreen");
+    } else {
+        brls::Logger::warning("[KazumiNX] Cannot open diagnostic log");
+    }
 }
 
 } // namespace
 
 void openHome() {
+    startDiagnosticLog();
     auto* root = new brls::Box(brls::Axis::COLUMN);
     root->setPadding(30, 55, 20, 55);
 
     auto* heading = new brls::Label();
-    heading->setText("Kazumi NX - Native Switch MVP");
+    heading->setText("Kazumi NX - Fullscreen P0.2");
     heading->setFontSize(28);
     heading->setMargins(4, 0, 12, 0);
     root->addView(heading);
 
     auto* explanation = new brls::Label();
-    explanation->setText("P0/P1: Choose a video to test networking and MPV playback.");
+    explanation->setText("P0.2: Software decoding test. Choose a video.");
     explanation->setFontSize(17);
     explanation->setMargins(0, 0, 24, 0);
     root->addView(explanation);
@@ -101,13 +139,13 @@ void openHome() {
     }
 
     auto* tip = new brls::Label();
-    tip->setText("Custom streams: sdmc:/switch/KazumiNX/streams.txt (Title|URL).");
+    tip->setText("Log: /config/KazumiNX/kazuminx.log | stream list: switch/KazumiNX/");
     tip->setFontSize(15);
     tip->setMargins(30, 0, 0, 0);
     root->addView(tip);
 
     auto* frame = new brls::AppletFrame(root);
-    frame->setTitle("Kazumi NX | Build P0.1");
+    frame->setTitle("Kazumi NX | P0.2");
     brls::Application::pushActivity(new brls::Activity(frame));
 }
 
