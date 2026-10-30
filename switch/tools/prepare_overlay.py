@@ -41,6 +41,30 @@ def apply_overlay(upstream: Path, overlay: Path) -> None:
         "    // Kazumi NX does not send wiliwili startup analytics or update checks."
     ) + source[analytics_end:]
 
+    # Update only the pinned wiliwili Switch metadata, not Flutter app.
+    cmake = upstream / "CMakeLists.txt"
+    if cmake.is_file():
+        value = cmake.read_text(encoding="utf-8")
+        icon_old = "set(PROJECT_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/icon/icon.jpg)"
+        icon_new = "set(PROJECT_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/icon/kazuminx.jpg)"
+        title_old = "COMMAND ${NX_NACPTOOL_EXE} --create ${PROJECT_NAME} ${PROJECT_AUTHOR} ${APP_VERSION} ${PROJECT_NAME}.nacp"
+        title_new = 'COMMAND ${NX_NACPTOOL_EXE} --create "Kazumi NX" "Kazumi NX Contributors" ${APP_VERSION} ${PROJECT_NAME}.nacp'
+        if value.count(icon_old) != 1 or value.count(title_old) != 1:
+            raise RuntimeError("wiliwili CMake metadata changed")
+        cmake.write_text(value.replace(icon_old, icon_new).replace(title_old, title_new), encoding="utf-8")
+    config = upstream / "wiliwili/source/utils/config_helper.cpp"
+    if config.is_file():
+        value = config.read_text(encoding="utf-8")
+        key = 'return "/config/wiliwili";'
+        if value.count(key) != 1:
+            raise RuntimeError("wiliwili Switch config path changed")
+        config.write_text(value.replace(key, 'return "/config/KazumiNX";'), encoding="utf-8")
+    build = upstream / "scripts/build_switch.sh"
+    if build.is_file():
+        value = build.read_text(encoding="utf-8")
+        if value.count("-DBUILTIN_NSP=ON") != 1:
+            raise RuntimeError("wiliwili build command changed")
+        build.write_text(value.replace("-DBUILTIN_NSP=ON", "-DBUILTIN_NSP=OFF"), encoding="utf-8")
     main.write_text(source, encoding="utf-8")
 
     dst_cpp = upstream / "wiliwili" / "source" / "kazumi_nx" / "launcher.cpp"
