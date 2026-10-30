@@ -1,0 +1,5 @@
+# Kazumi NX test streams: one title and one direct video URL per line.
+# Copy this file to sdmc:/switch/KazumiNX/streams.txt
+# Only direct HTTP(S) video URLs are supported in this initial build.
+MP4 demo|https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+HLS demo|https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8

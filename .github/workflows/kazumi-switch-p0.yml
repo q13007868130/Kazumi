@@ -1,0 +1,56 @@
+name: Kazumi NX Switch P0/P1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - port/switch-wiliwili-mvp
+    paths:
+      - switch/**
+      - .github/workflows/kazumi-switch-p0.yml
+
+permissions:
+  contents: read
+
+jobs:
+  switch:
+    name: Build native .nro via wiliwili toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Kazumi NX overlay
+        uses: actions/checkout@v4
+
+      - name: Test overlay patcher offline
+        run: python3 -m unittest discover -s switch/tests -v
+
+      - name: Fetch pinned wiliwili
+        run: |
+          git clone --recursive https://github.com/xfangfang/wiliwili.git wiliwili-upstream
+          git -C wiliwili-upstream checkout --detach 88e5876bea9502d06f46a8656e3530684d3aaf7d
+          git -C wiliwili-upstream submodule update --init --recursive
+          test "$(git -C wiliwili-upstream rev-parse HEAD)" = 88e5876bea9502d06f46a8656e3530684d3aaf7d
+
+      - name: Apply Kazumi NX launcher overlay
+        run: python3 switch/tools/prepare_overlay.py --upstream wiliwili-upstream
+
+      - name: Build native Switch application in devkitPro
+        run: |
+          docker run --rm -v "$PWD/wiliwili-upstream:/data" devkitpro/devkita64:20251117 \
+            bash -c "/data/scripts/build_switch.sh"
+
+      - name: Stage artifact
+        run: |
+          test -s wiliwili-upstream/cmake-build-switch/wiliwili.nro
+          mkdir -p dist/KazumiNX
+          cp wiliwili-upstream/cmake-build-switch/wiliwili.nro dist/KazumiNX/KazumiNX.nro
+          cp switch/streams.txt dist/KazumiNX/streams.txt
+          cp switch/README.md dist/README.md
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KazumiNX-P0
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
