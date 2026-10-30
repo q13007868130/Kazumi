@@ -1,0 +1,4 @@
+# KazumiNX: each line is Title|Direct media URL
+MP4 test|https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+HLS test|https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+Local test|sdmc:/switch/KazumiNX/test.mp4
